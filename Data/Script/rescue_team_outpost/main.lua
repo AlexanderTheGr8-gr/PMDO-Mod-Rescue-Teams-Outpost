@@ -1,0 +1,1 @@
+require 'rescue_team_outpost.services.rescue_team_outpost'

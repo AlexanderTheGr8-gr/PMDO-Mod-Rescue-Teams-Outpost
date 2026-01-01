@@ -1,0 +1,20 @@
+<Header>
+  <Name>Rescue Team Outpost</Name>
+  <Author>Necro</Author>
+  <Description>Now even your teammates can go on dungeoooonsss!!! :D
+They will never again be useless like teddy-bears!
+So feel free to CARE for them ^_^
+they are not a waste of time any more :D</Description>
+  <Namespace>rescue_team_outpost</Namespace>
+  <UUID>32E2B631-EDF8-42BF-A7E3-DFFA8AD1F042</UUID>
+  <Version>0.5</Version>
+  <GameVersion>0.8.9</GameVersion>
+  <ModType>Mod</ModType>
+  <Relationships>
+    <RelatedMod>
+      <UUID>A89619CC-9F3C-4C8D-B6AB-964A8D317F4F</UUID>
+      <Namespace>advanced_camp</Namespace>
+      <Relationship>DependsOn</Relationship>
+    </RelatedMod>
+  </Relationships>
+</Header>
