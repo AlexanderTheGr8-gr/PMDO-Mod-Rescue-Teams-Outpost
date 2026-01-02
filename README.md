@@ -5,6 +5,8 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 <br>
 <br>
 
+[CONTINUE HERE](#continue_here)
+
 ### Features (So far):
 - New "Shop": Rescue Teams Outpost
 - Team management
@@ -13,6 +15,14 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 - Quests: Send Team to Dungeon (Makeshift. Does nothing after choosing dungeon)
 <br>
 <br>
+
+---
+
+### Legend
+- {Event}
+- [Menu]
+- § Code action referenced
+- MVC: Model View Control (Google it)
 
 ### """ROADMAP"""
 
@@ -29,52 +39,74 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 		- [ ] you THEN propagate in code, the structure of interconnected functions...
 		- [ ] Functions FOR EVERYTHING! Even for a small fart...
 ---
-- [ ] TASK 2 !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+- [ ] TASK 2
 	- [ ] Find the swiftest way possible, TO CLOSE the existing mod
 		- [ ] You can test menus by providing dump data!! No need to run a complete mission!!
 			- [ ] WHEN UI is ready, THEN run a complete mission, to check correct INTEGRATION only... damn you :S ...
 	- [ ] Release version v1.0.0!!! (Actually 0.5, just don't name it 0.5 cause you'll scare people xD. No bugs here, just roadmap WAAAAY far from complete.)
 ---
+- [ ] CALLBACK TASK 1
+	- [ ] All classes should get a RTO prefix. Even the "meaningful" ones, like "Quest", because it's RTO's way of visualizing a Quest!!
+---
 
 
 - [ ] ACTIVE TASK
-	- [ ] Info
-		- [ ] Steps/Turns (Main team) -> Ticks (Universal) -> Floor progress (RTO Teams)
-		
+	- Info
+		- Steps/Turns (Main team) -> Ticks (Universal) -> Floor progress (RTO Teams)
+		- Ticks advanced based on Team.MainTeam.Quest.Progress.floor_turn_counter EVEN if floor ALREADY cleared (because team can traverse up-down)
+	
+	
 	- [ ] MVC: Control
 		- [ ] Events
-			- [ ] On {Main team turn taken in dungeon floor} -> Increment "Dungeon steps/Turn Counter"
-				§ FIND: {Main team turn taken in dungeon floor}
-				§ INSTALL: Field "Dungeon steps/Turn Counter" ? WHERE?
-			- [ ] On {Main team exit dungeon} -> Reset "Dungeon steps/Turn Counter"
-				§ FIND: {Main team exit dungeon}
-			- [ ] On <<[Manage Quests] -> View all>> -> Menu: [Complete Summary Screen]
-			- [ ] On {Main team dungeon completion handler} -> Menu: [Complete Summary Screen]
-				- [ ] Link it to normal flow = Before dungeon finish UI, events, etc
-				§ FIND: {Main team dungeon completion handler}
-			- [ ] On {Main team change dungeon floor} -> {RTO time tick} (Exploration team progress speed)
-				? (Is it okay to proceed the ticks on floor change? And rather not while stepping around / taking turns?)
-				- [ ] NOTE: Ticks advanced based on "Dungeon steps/Turn Counter" EVEN if floor ALREADY cleared (because team can traverse up-down)
-				- [ ] Create a function (floor analysis) that tells dungeon "size". Combine how many steps are required to finish the floor, from avg minimum, to EXHAUSTIVE complete (like, all available walkable tiles)
-					CURRENT VERSION:
-						Something like this will suffice: tiny / small / normal / large / gigantic
-					(Warning: floors are "square-like"!! So 2x should provide 4x ticks!! Not 2x!! Also some maps are perimeter based only)
-				§ FIND: {Main team change dungeon floor}
-				§ NEW FUNCTION: floor_size_info
-					- [ ] All walkable tiles count
-					- [ ] Avg stairs count (Maybe max radius?)
-			- [ ] On {Quest start} OR [New Quest]
-				- [ ] Fetch dungeon parameters:
-					- [ ] PokemonList
-					- [ ] ItemList
-					- [ ] GoldList
-					- [ ] TrapList
-					- [ ] IsBossFloor
-				§ RESEARCH: Dungeon Info / Creation (Lists: Pokemon spawns, item drops, etc etc)
+			- <h3 id="continue_here"><b><u>CONTINUE HERE</u></b></h3>
+			- #### Main Team Events
+				- [ ] On {Main team enter dungeon} -> Create a Quest and Record dungeon in a Quest.Contract.Dungeon
+					§ FIND: {Main team enter dungeon}
+					§ NEW FUNCTION: Quest.fromMainTeamDungeon(Main Team, Current Dungeon): Quest
+						? What will become with the Quest data? Like "Contract" etc?
+							- Maybe some things need to be nullable
+				- [ ] On {Main team turn completed} -> Increment Team.MainTeam.Quest.Progress.floor_turn_counter
+					§ FIND: {Main team turn completed}
+					§ NEW FIELD: Team.MainTeam.Quest.Progress.floor_turn_counter: Team.MainTeam.Quest.Progress.floor_turn_counter
+				- [ ] On {Main team exit dungeon}
+					- [ ]
+					§ FIND: {Main team exit dungeon}
+				- [ ] On {Main team dungeon completion handler} -> Menu: [Complete Summary Screen]
+					- [ ] Link it to normal flow = Before dungeon finish UI, events, etc
+					§ FIND: {Main team dungeon completion handler}
+					§ FIND: dungeon finish UI
+				- [ ] On {Main team change dungeon floor}
+					- [ ] Convert Reset Team.MainTeam.Quest.Progress.floor_turn_counter to ticks. Do {RTO time tick} (Exploration team progress speed)
+					§ FIND: {Main team change dungeon floor}
+				
+			- #### UI Events
+				- [ ] On {[Manage Quests] -> View all} -> Menu: [Complete Summary Screen]
+				- [ ] On {Quest start} (After [New Quest])
+					- [ ] Cache dungeon parameters:
+						- [ ] FloorList
+							- [ ] PokemonList
+							- [ ] ItemList
+							- [ ] GoldList
+							- [ ] TrapList
+							- [ ] Floor characteristics, (example: IsBossFloor)
+					§ FIND: {Quest start}
+					§ RESEARCH: Dungeon Info / Creation (Lists: Pokemon spawns, item drops, etc etc)
+					§ STORE REFERENCES - WHERE?
+			- #### RTO Team Events
+			- #### Misc Events
+			
+
+			
 			- [ ] On {RTO time tick}
 				- [ ] If Floor 0 (Preparation Phase) just begin (With 1 tick)
 				- [ ] Determine floor "turns/steps taken to proceed"
+					- [ ] Create a function (floor analysis) that tells dungeon "size". Combine how many steps are required to finish the floor, from avg minimum, to EXHAUSTIVE complete (like, all available walkable tiles)
+						- CURRENT VERSION: Consider using something for startes, like, dungeon size: tiny / small / normal / large / gigantic
+							- Warning: floors are "square-like"!! So 2x should provide 4x ticks!! Not 2x!! Also some maps are perimeter based only
 					§ FIND: Max steps per floor (the "Something is approaching" thing...)
+					§ NEW FUNCTION: floor_size_info
+						- [ ] All walkable tiles count
+						- [ ] Avg stairs count (Maybe max radius?)
 				- [ ] Advance progress counter:
 					- [ ] "Quest Progress".currentTickProgress += 1
 					- [ ] ticksPerRemoteFloor:
@@ -174,29 +206,37 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 				- [ ] Team disbanded? Recommend NOT full permadeath by default. Instead mark team as injured and require restTicks to be reused. If you want a harder mode, offer permadeath toggle.
 			
 	- [ ] MVC: Model (Entities)
-		- [ ] Main team: "Dungeon steps/Turn Counter" (Each tick is being filled as turns are taken)
-		
 		- [ ] Team
-			- [ ] Link: Team bag
-			- [ ] Link: Team purse
-			- [ ] Link: Team recruited
-			- [ ] Link: Pokemons
-		- [ ] Team bag
-		- [ ] Team purse
-		- [ ] Team recruited
+			- [ ] Link: Team.Bag
+			- [ ] Link: Team.Purse
+			- [ ] Link: Team.Recruits
+			- [ ] Link: Team.Pokemon
+			- [ ] Static: Team.MainTeam: active team reference/index
+		- [ ] Team.Bag
+		- [ ] Team.Purse
+		- [ ] Team.Recruits
+		- [ ] Team.Pokemon
+		- [ ] Main team
 		
 		- [ ] Quest
-			- [ ] Link: Quest contract
-			- [ ] Link: Quest Progress
+			- [ ] Link: Quest.Contract
+			- [ ] Link: Quest.Progress
 			- [ ] Link: Job
-			- [ ] Options
-			- [ ] Progress
-				- [ ] Possible stages:
-					- [ ] Preparation (Barely confirmed mission)
-					- [ ] Ongoing [F: Quest failed] / Returning
-					- [ ] Completed / Fainted
-		- [ ] Quest contract
-		- [ ] Quest Progress
+		
+		- [ ] Quest.Contract (Options)
+			- [ ] Link: Quest.Contract.Dungeon
+		
+		- [ ] Quest.Contract.Dungeon
+			
+		- [ ] Quest.Progress
+			- [ ] Quest.Progress.floor_turn_counter: Used only for Main Team
+			- [ ] Possible stages:
+				- [ ] Preparation (Barely confirmed mission)
+				- [ ] Ongoing [F: Quest failed] / Returning
+				- [ ] Completed / Fainted
+		
+		- [ ] Mod_save_data:
+			- ...
 		
 		- [ ] Arbitrary data:
 			- [ ] Location: Organize Teams (Home)
@@ -263,6 +303,8 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 	- [ ] Simulate encounters
 		- [ ] Use priority to adjust winProb and AI choices: Survival reduces engagements (higher flee probability)
 	- [ ] Events
+		- [ ] On {Main team change dungeon floor} -> {RTO time tick} (Exploration team progress speed)
+			- Consider to spread the calculations out, bg processes, rather than a single mega-calculation per tick...
 		- [ ] On {RTO team needs help (fainted)} -> [Bubble Popup Message]
 			- [ ] {Requirement: Telecommunication bridge between: Incident - Base - Main team}
 		- [ ] On {RTO time tick} (Steps ordered)
