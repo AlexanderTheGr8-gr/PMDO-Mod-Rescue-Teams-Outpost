@@ -66,7 +66,8 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 					§ FIND: {Dungeon MainTeam change floor}
 					- [X] Convert Team.MainTeam.Quest.Progress.floor_turn_counter to ticks (int div) ($converted_ticks), and preserve the remainder(X % Y)!! rather than resetting to 0!!
 						§ NEW FIELD: CONSTANTS.TURNS_PER_TICK
-					- [X] Do $converted_ticks * Emit: {Quests tick}
+					- [X] for $converted_ticks
+						§ EMIT: {Quest time tick}
 						§ NEW FUNCTION: RTO_quests_tick(int ticks)
 				- [X] On {Dungeon MainTeam exit} -> Menu: [Complete Summary Screen]
 					§ FIND: {Main team dungeon completion handler}
@@ -78,96 +79,107 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 						? TODO: Quest data is still vague/undefined in my head...
 						? What will become with the Quest data? Like "Contract" etc?
 							- Maybe some things need to be nullable
-			
-			- <h3 id="continue_here"><b><u>CONTINUE HERE</u></b></h3>	
+				- [X] On {Ground MainTeam Seconds pass}
+					- Why: so that ticks happen while you are at city => Distress signals can work with normal flow. Feels more "natural". Time flows EVEN in city
+					§ NEW FIELD: CONSTANTS.MAX_GROUND_SECONDS_TO_CALCULATE : for Balance
+						- Then time pauses. To force you go to dungeon. It's not a manager/idle game
+					§ NEW FIELD: CONSTANTS.HOW_MANY_GROUND_SECONDS_ARE_TURN_MULTIPLIER : Balance: tick = CONSTANTS.TURNS_PER_TICK * CONSTANTS.HOW_MANY_GROUND_SECONDS_ARE_TURN_MULTIPLIER
+						- Why: to disable idle farming
+						- example: CONSTANTS.HOW_MANY_GROUND_SECONDS_ARE_TURN_MULTIPLIER = 2
+					§ Team.MainTeam.ground_seconds += 1
+					§ if Team.MainTeam.ground_seconds / CONSTANTS.HOW_MANY_GROUND_SECONDS_ARE_TURN_MULTIPLIER >= CONSTANTS.TURNS_PER_TICK
+						§ Team.MainTeam.ground_seconds = 0
+						§ EMIT: {Quest time tick}
+				
 			- #### UI Events
 				- [X] On {[Manage Quests] -> View all} -> Menu: [Complete Summary Screen]
-				- [ ] On {Quest start} (After completing [New Quest])
+				- [~] On {Quest start} (After confirming [New Quest])
 					§ FIND: {Quest start}
-					- [~] Cache dungeon parameters:
-						§ STORE REFERENCES: Quest.Contract.Dungeon
-						? TODO: RESEARCH: Dungeon Info / Creation (Lists: Pokemon spawns, item drops, etc etc)
-						- [ ] FloorList
-							- [ ] PokemonList
-							- [ ] ItemList
-							- [ ] GoldList
-							- [ ] TrapList
-							- [ ] Floor characteristics, (example: IsBossFloor)
-					- [ ] Cache calculations
-						- [ ] Foreach segment
-							- [ ] Determine "turns/steps taken to proceed"
-								§ FIND: Max steps per floor (the "Something is approaching" thing...) : CONSTANTS.MAX_POSSIBLE_STEPS
-								- [ ] Create f "floor analysis" that tells dungeon "size". Combine how many steps are required to finish the floor, from avg minimum, to EXHAUSTIVE complete (like, all available walkable tiles)
-									? TODO: RESEARCH: Dungeon Info / Segments info
-									§ NEW FUNCTION: floor_size_info
-									- [ ] Record: All walkable tiles count
-									- [ ] Record: Avg stairs count (Maybe max radius?)
-									- CURRENT VERSION: Consider using something "cheap", like, dungeon size: tiny / small / normal / large / gigantic
-										- Warning: floors are "square-like"!! So x2 should provide x4 ticks!! Not x2!! Also some maps are perimeter based only
-									- NEXT VERSION: 
-										- [ ] ticksPerRemoteFloor:
-											- [ ] RTO team current floor size
-											- [ ] Quest chosen speed matters
-											- [ ] Quest pririty matters (is it reqruiting? Training? Those are ultra heavy)
-											- [ ] Simple booleans matter, like, did you tick the: Open all traps? That adds somewhat
+					- [~] Cache:
+						- [~] Dungeon parameters
+							§ STORE REFERENCES: Quest.Contract.Dungeon
+							? TODO: RESEARCH: Dungeon Info / Creation (Lists: Pokemon spawns, item drops, etc etc)
+							- [ ] FloorList
+								- [ ] PokemonList
+								- [ ] ItemList
+								- [ ] GoldList
+								- [ ] TrapList
+								- [ ] Floor characteristics, (example: IsBossFloor)
+						- [~] Calculations
+							- [ ] Foreach segment
+								- [ ] Determine "turns/steps taken to proceed"
+									§ STORE REFERENCES: Quest.Contract.DungeonExtraInfo.floor_size_info
+									§ FIND: Max steps per floor (the "Something is approaching" thing...) : CONSTANTS.MAX_POSSIBLE_STEPS
+									- [ ] Create f "floor analysis" that tells dungeon "size". Combine how many steps are required to finish the floor (ticks_per_floor), from avg minimum, to EXHAUSTIVE complete (like, all available walkable tiles)
+										- One could say that the path taken / steps/turns, are "Predefined", based on Quest Contract (what the team aims to do)...
+										- Because, you know, the pokemon does not return where it already searched! ... So it's like a flood
+										? TODO: RESEARCH: Dungeon Info / Creation (Lists: Pokemon spawns, item drops, etc etc)
+										§ NEW FUNCTION: floor_size_info
+										- [ ] Record: All walkable tiles count
+										- [ ] Record: Avg stairs count (Maybe max radius?)
+										- CURRENT VERSION: Consider using something "cheap", like, dungeon size: tiny / small / normal / large / gigantic
+											- Warning: floors are "square-like"!! So x2 should provide x4 ticks!! Not x2!! Also some maps are perimeter based only
+										- NEXT VERSION: 
+											- [ ] ticksPerRemoteFloor:
+												- [ ] RTO team current floor size
+												- [ ] Quest chosen speed matters
+												- [ ] Quest pririty matters (is it reqruiting? Training? Those are ultra heavy)
+												- [ ] Simple booleans matter, like, did you tick the: Open all traps? That adds somewhat
 			
 			- #### Misc Events
-				- [ ] On {Quests tick} ("Quest tick" serves as "ADVANCE QUEST", but this concept is in conflict with my focus that EVEN A TINY FART, should be a function... SPLIT IT!)
+				- [~] On {Quest time tick} ("Quest tick" serves to "Advance Quests", it is NOT itself the "advance quest" function)
 					- [ ] Foreach Quest
 						§ NEW/EXISTING FUNCTION/FIELD: Quest.all
-						- [ ] Quest.Progress.current_floor == 0: "Preparation phase", will depart shortly...
+						- Quest.Progress.current_floor == 0: "Preparation phase", will depart shortly...
 							§ NEW FUNCTION: "Notify new departs" ? TODO: function where? Needs params?
 							§ Emit: {Quest starting(Quest)}
-						- [ ] Advance progress counter:
-							- [ ] Quest.Progress.currentTickProgress += 1
-								§ NEW FUNCTION "Advance progress counter" ? TODO: function where? Needs params?
-							- [ ] If >= then Quest.Progress.currentTickProgress = 0 and the team attempts to traverse one dungeon floor (full tick).
-								- [ ] Emit: {RTO Team dungeon floor decending}
-				- [ ] On {Ground Seconds pass} - Accumulate "long seconds" and use them as a tick
-					- "Long seconds", means, if 20 turns in Dungeon take 60 seconds, the equivalent in Ground should be way more, like 120? Dunno
-					- Thus, ticks happen while you are at city => Distress signals can work with normal flow
-					- Balance is made, by not allowing you to farm their work, by sending them out and waiting
-					- It feels more "natural", like, that time flows EVEN when you are at the city...
-					- You could even make a nicer balance! Like: Time passes normally (So as to actually SEE events happening, rather than them being too unoften) BUT!! There is a cutoff! Like, you get max 2 steps while in city. Then time pauses!! To force you to be unable to farm other's work. It's not a manager or idle game after all!! xD
-					- All those should be configurable, for the mod user. People may be fond of turning PMDO to manager game ... (shrug)
+						§ NEW FUNCTION: Quest.Progress.advanceTime(int ticks)
+							§ Quest.Progress.currentTickProgress += 1
+							§ If Quest.Progress.currentTickProgress >= Quest.Contract.DungeonExtraInfo.floor_size_info.ticks_per_floor
+								§ Quest.Progress.currentTickProgress = 0
+								§ EMIT: {RTO Team dungeon floor descending}
 			
+			- <h3 id="continue_here"><b><u>CONTINUE HERE</u></b></h3>
 			- #### RTO Team Events
-				- [ ] On {RTO Team dungeon floor decending} (Steps ordered)
-					- ->
-						- i) One could say that the path taken / steps/turns, are "Predefined", based on Quest Contract (what the team aims to do)...
-							- [ ] Because, you know, the poke does not return where it already searched! ... So it's like a flood
-							=> So, all mechanisms should count on how much steps the team will take in this floor!
-						- !X Determine floor properties
-							Actually ... I am thinking I should KEEP the actual objects... Instead of "Gathering info for my mod", I should rather learn to use the existing objects.... So as to be more flexible! And less RAM hungry xD
-					
+				- [ ] On {RTO team fight won}
+					- [ ] Calculate XP
+						§ Team.Pokemon[*].exp += "Calculated XP"
+				- [ ] On {RTO team fight badly damaged}
+					- [ ] Consider Quest Contract for escaping
+					- [ ] Consider Quest Contract for using healing items
+				- [ ] On {RTO team fight faint}
+					- [ ] Consider Quest Contract for escaping
+					- [ ] Consider Quest Contract for using revive items
+					- [ ] Consider Quest failed conditions??
+					- [ ] Set Team.Pokemons[that_pokemon] as fainted
+					- [ ] If all team fainted
+						§ EMIT: {RTO Team fainted}
+				- [ ] On {RTO Team dungeon floor descending}
 					- [ ] Calculate "encounters" based on "turns/steps taken to proceed"
-						- [ ] Calculate "Moves used count" based on encounters
+						- NO "Moves used calculations" V.1 SPARE ME!!
+						? TODO: RESEARCH: Dungeon Info / Creation (Lists: Pokemon spawns, item drops, etc etc)
+						- [ ] Choose enemy(s) using dungeon spawn table for that floor. From:  Quest.Contract.Dungeon
 					- [ ] Simulate encounters
-						- [ ] Choose enemy(s) using dungeon spawn table for that floor.
 						- [ ] Foreach
 							- [ ] Match Pokemons to each fight (Also calculate that as turns pass, an allied pokemon might engage)
+								§ RANDOM MATCH
 							- [ ] Compute outcome:
-								- [ ] Study combat, in order to define the outcome...
-									- [ ] Maybe skip that for Version one with a simple formula?? ...
+								? TODO: RESEARCH: combat, in order to define the outcome...
+									? TODO: Maybe skip that for Version one with a simple formula?? ...
 										- [ ] winProb = sigmoid( teamStrength / enemyStrength * statusModifiers ) where teamStrength = sum(memberOffense) * (1 + teamLevel*0.02) * moraleBonus and enemyStrength = sum(enemyOffense).
-								- [ ] Calculate hp loss
-								- [ ] Update Team.Pokemons[that_pokemon] stats (health, fainted), status etc
-							- [ ] On {RTO team fight won}:
-								- [ ] Calculate XP
-							- [ ] On {RTO team fight badly damaged}:
-								- [ ] Consider Quest Contract for escaping
-								- [ ] Consider Quest Contract for using healing items
-							- [ ] On {RTO team fight faint}:
-								- [ ] Consider Quest Contract for escaping
-								- [ ] Consider Quest Contract for using revive items
-								- [ ] Consider Quest failed conditions??
-								- [ ] Set Team.Pokemons[that_pokemon] as fainted
-								-	If all team fainted: Emit: {RTO Team fainted}
-							- [ ] Recruitment attempts:
-								- [ ] If not recruitable / team full: break
-								- [ ] Calculate recruit chance
-									- [ ] account for boosting items / etc
-								- [ ] If success Emit: {RTO Team recruit success}
+								§ SWITCH("outcome")
+									§ CASE badly damaged
+										§ EMIT: {RTO team fight badly damaged}
+									§ CASE fainted
+										§ EMIT: {RTO team fight faint}
+									§ CASE won
+										§ EMIT: {RTO team fight won}
+										- [ ] Recruitment attempts:
+											§ If not recruitable / team full: break
+											- [ ] Calculate recruit chance
+												- [ ] account for boosting items / etc
+											§ If success
+												§ EMIT: {RTO Team recruit success(enemy_pokemon)}
 					- [ ] Food consumption:
 						- [ ] Just like in Main team, based on: foodPerStep/Turn * turns/steps taken + "Moves used count" * foodPerMove
 						- [ ] turns/steps taken, combo of: 
@@ -185,7 +197,7 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 								- [ ] Run item choice algorith
 								- [ ] excess is left behind
 					- [ ] NO TRAPS V.1 SPARE ME!!
-					- [ ] Emit: {RTO Team dungeon floor decended}
+					§ EMIT: {RTO Team dungeon floor decended}
 				- [ ] On {RTO Team dungeon floor decended}
 					- [ ] "Quest Progress".floorsCleared++
 					- [ ] Check Quest Contract to see if Quest completed
@@ -195,7 +207,7 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 						-? Pokemon rescued
 						- [ ] Job completed
 						- [ ] ...
-				- [ ] On {RTO Team recruit success}
+				- [ ] On {RTO Team recruit success(enemy_pokemon)}
 					- [ ] Add poke to the Team.Recruits stack
 				- [ ] On {RTO Team leaving dungeon}
 					- [ ] Award Exp
@@ -214,7 +226,7 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 						- [ ] If ConsumeReviverItems set and items available — auto revive using item and continue (with HP/food penalty).
 						- [ ] Else if PayRescueFee set and outpostHasFunds → spend coins and revive team (set morale penalty).
 						- [ ] Else: mission failed — compute losses:
-							- [ ] Emit: {RTO Team quest failed}
+							§ EMIT: {RTO Team quest failed}
 				- [ ] On {RTO Team quest failed} (After {RTO Team leaving dungeon})
 					- [ ] Empty: Team.purse, Team.recruited, Team.bag
 					- [ ] Surviving recruited Pokémon (if any) have a chance to escape (recruitment fails) or return injured.
@@ -227,12 +239,18 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			
 			- CONSTANTS.MAX_POSSIBLE_STEPS
 			- CONSTANTS.TURNS_PER_TICK
+			- CONSTANTS.MAX_GROUND_SECONDS_TO_CALCULATE
+			- CONSTANTS.HOW_MANY_GROUND_SECONDS_ARE_TURN_MULTIPLIER
 			
 			- Quest.all
 			- Quest.fromMainTeamDungeon(Main Team, Current Dungeon): Quest
 			- Quest.Progress.current_floor
 			- RTO_quests_tick(int ticks)
 			- Team.MainTeam.Quest.Progress.floor_turn_counter
+			- Team.MainTeam.ground_seconds
+			- Quest.Contract.DungeonExtraInfo.floor_size_info
+			- Quest.Progress.advanceTime(int ticks)
+			- Quest.Contract.DungeonExtraInfo.floor_size_info.ticks_per_floor
 			
 		- [ ] Team
 			- [ ] Link: Team.Bag
@@ -241,10 +259,13 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			- [ ] Link: Team.Pokemon
 			- [ ] Link: Quest
 			- [ ] Static: Team.MainTeam: active team reference/index
+			- [ ] ground_seconds
 		- [ ] Team.Bag
 		- [ ] Team.Purse
 		- [ ] Team.Recruits
 		- [ ] Team.Pokemon
+			- [ ] Link: Pokemon Char
+			- [ ] Exp
 		- [ ] Main team
 		
 		- [ ] Quest
@@ -254,11 +275,16 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 		
 		- [ ] Quest.Contract (Options)
 			- [ ] Link: Quest.Contract.Dungeon
+			- [ ] Link: Quest.Contract.DungeonExtraInfo
 		
 		- [ ] Quest.Contract.Dungeon
+		
+		- [ ] Quest.Contract.DungeonExtraInfo
+			- [ ] floor_size_info
 			
 		- [ ] Quest.Progress
 			- [ ] Quest.Progress.floor_turn_counter: Used only for Main Team
+			- [ ] Quest.Progress.advanceTime(int ticks)
 			- [ ] Possible stages:
 				- [ ] Preparation (Barely confirmed mission)
 				- [ ] Ongoing [F: Quest failed] / Returning
@@ -338,11 +364,12 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 	- [ ] Simulate encounters
 		- [ ] Use priority to adjust winProb and AI choices: Survival reduces engagements (higher flee probability)
 	- [ ] Events
-		- [ ] On {Dungeon MainTeam change floor} -> Emit: {Quests tick} (Exploration team progress speed)
+		- [ ] On {Dungeon MainTeam change floor}
+			§ EMIT: {Quest time tick} (Exploration team progress speed)
 			- Consider to spread the calculations out, bg processes, rather than a single mega-calculation per tick...
 		- [ ] On {RTO team needs help (fainted)} -> [Bubble Popup Message]
 			- [ ] Requirement: Telecommunication bridge between: Incident - Base - Main team
-		- [ ] On {Quests tick} (Steps ordered)
+		- [ ] On {Quest time tick}
 				- [ ] you walk => All those must be processed "In parallel"...
 					- [ ] You meet traps
 					- [ ] You meet pokemon
@@ -351,7 +378,13 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 					- [ ] Exit / Hidden exit / Anomally / etc-etc
 					- [ ] You meet puzzles!!
 					- [ ] You meet risky bargains!! (Like, switch the trap, get treasures and TROUBLES!!)
-		- [ ] On {RTO Team dungeon floor decending} (Steps ordered)
+		- [ ] On {RTO Team dungeon floor descending}
+			- [ ] Calculate "encounters" based on "turns/steps taken to proceed"
+				- [ ] Calculate "Moves used count" based on encounters
+			- [ ] Simulate encounters
+				- [ ] Compute outcome:
+					- [ ] Calculate hp loss
+					- [ ] Update Team.Pokemons[that_pokemon] stats (health, fainted), status etc
 			- [ ] Traps & hazards:
 				(Traps should "carry stuff" to the following battles, like if it was not insta damage, life diminishes little by little => in next battle you are damaged! Because damage slowly heals)
 				-	Trap triggers reduce HP or consume items. trapChance = baseTrapRate * dungeonTrapModifier * modeTrapMod.
