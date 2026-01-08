@@ -107,7 +107,7 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 								- [ ] Floor characteristics, (example: IsBossFloor)
 						- [~] Calculations
 							- [ ] Foreach segment
-								- [ ] Determine "turns/steps taken to proceed"
+								- [ ] Determine Quest.Contract.DungeonExtraInfo.floor_size_info.ticks_per_floor
 									§ STORE REFERENCES: Quest.Contract.DungeonExtraInfo.floor_size_info
 									§ FIND: Max steps per floor (the "Something is approaching" thing...) : CONSTANTS.MAX_POSSIBLE_STEPS
 									- [ ] Create f "floor analysis" that tells dungeon "size". Combine how many steps are required to finish the floor (ticks_per_floor), from avg minimum, to EXHAUSTIVE complete (like, all available walkable tiles)
@@ -141,21 +141,46 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			
 			- <h3 id="continue_here"><b><u>CONTINUE HERE</u></b></h3>
 			- #### RTO Team Events
-				- [ ] On {RTO team fight won}
+				- [ ] On {RTO team want to escape}
+					...
+				- [X] On {RTO team fight won}
 					- [ ] Calculate XP
 						§ Team.Pokemon[*].exp += "Calculated XP"
-				- [ ] On {RTO team fight badly damaged}
+					- [ ] Recruitment attempts:
+						§ If not recruitable / team full: break
+						- [ ] If not recruiting: break
+						- [ ] Calculate recruit chance
+							- [ ] account for boosting items / etc
+						§ If success
+							§ EMIT: {RTO Team recruit success(enemy_pokemon)}
+				- [X] On {RTO team fight badly damaged}
 					- [ ] Consider Quest Contract for escaping
+						§ "team_max_hp" = 0
+						§ "team_cur_hp" = 0
+						§ Foreach Team.members[X]
+							§ "team_max_hp" += Team.members[X].max_hp
+							§ "team_cur_hp" += Team.members[X].cur_hp
+						§ if(Quest.Contract.return_policy -> AbortOnMajorLoss && "team_cur_hp" / "team_max_hp" * 100 < CONSTANTS.MAJOR_LOSS_PERCENT)
+							§ EMIT: {RTO team want to escape}
 					- [ ] Consider Quest Contract for using healing items
-				- [ ] On {RTO team fight faint}
-					- [ ] Consider Quest Contract for escaping
-					- [ ] Consider Quest Contract for using revive items
-					- [ ] Consider Quest failed conditions??
-					- [ ] Set Team.Pokemons[that_pokemon] as fainted
-					- [ ] If all team fainted
+						§ if(Quest.Contract.tactics HAS use_items && Team.bag contains healing item: itemX)
+							§ EMIT: {RTO team using healing item(itemX)}
+				- [X] On {RTO team fight faint}
+					§ Set Team.members[X] SET fainted
+					§ If all team fainted
 						§ EMIT: {RTO Team fainted}
-				- [ ] On {RTO Team dungeon floor descending}
-					- [ ] Calculate "encounters" based on "turns/steps taken to proceed"
+						§ FUNCTION TERMINATE
+					§ if(Quest.Contract.tactics HAS use_items && Team.bag contains revive item: itemX)
+						? TODO: WARNING: Bad logic. This way up to 1 item can be used... Make this "Loopable"
+						§ EMIT: {RTO team using healing item(itemX)}
+					- [ ] Consider Quest failed conditions??
+						§ if(Team.members.filter(p => p NOT fained).length <= 0)
+							§ EMIT: {RTO Team fainted}
+						? Other objectives that may have failed? Like a "None dead condition"?? hmmm...
+					§ if(Quest.Contract.return_policy == AbortOnAnyFaint)
+						§ EMIT: {RTO team want to escape}
+				- [~] On {RTO Team dungeon floor descending}
+					- [ ] Calculate "encounters" based on CONSTANTS.TURNS_PER_TICK * Quest.Progress.currentTickProgress
 						- NO "Moves used calculations" V.1 SPARE ME!!
 						? TODO: RESEARCH: Dungeon Info / Creation (Lists: Pokemon spawns, item drops, etc etc)
 						- [ ] Choose enemy(s) using dungeon spawn table for that floor. From:  Quest.Contract.Dungeon
@@ -174,45 +199,63 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 										§ EMIT: {RTO team fight faint}
 									§ CASE won
 										§ EMIT: {RTO team fight won}
-										- [ ] Recruitment attempts:
-											§ If not recruitable / team full: break
-											- [ ] Calculate recruit chance
-												- [ ] account for boosting items / etc
-											§ If success
-												§ EMIT: {RTO Team recruit success(enemy_pokemon)}
+							- [X] Calculate "Moves used count" => depends on: Simulate encounters
+								- V.1: NO "Moves used count"!!!
 					- [ ] Food consumption:
-						- [ ] Just like in Main team, based on: foodPerStep/Turn * turns/steps taken + "Moves used count" * foodPerMove
-						- [ ] turns/steps taken, combo of: 
-							- [ ] F: floor_size_info, steps to exit
-							- [ ] Quest contract
-								- [ ] Will be mopping whole floor? Quickly passing through?
-								- [ ] ...
-							- [ ] "Moves used count" => depends on: Simulate encounters
-								- [ ] Combat intensity approximated by expectedEncounterCount * avgEnemyHP / avgTeamHP. Or more simply compute: expectedCombatRatio = 0.5 + 0.5 * encounterCount (tunable).
-						- [ ] Subtract from mission inventory; if food falls below returnOnLowFoodPct * startingFood and autoReturn true → set mission aborted and initiate return handling.
+						§ Consume hunger: "foodPerStep/Turn" * CONSTANTS.TURNS_PER_TICK * Quest.Progress.currentTickProgress + "Moves used count" * "foodPerMove" // Just like in Main team
+							§ FROM: array_sum(array_column(Team.members, 'hunger'))
+							§ FIND: "foodPerStep/Turn"
+							§ FIND: "foodPerMove"
+						§ if(array_sum(array_column(Team.members, 'hunger')) < 50% && Quest.Contract.tactics HAS use_food_items && Team.bag HAS food)
+							§ LIST ALL FOODS: $food
+							$ FOREACH: $food: if( array_sum(array_column(Team.members, 'hunger') + $food -> array_sum(array_column(Team.members, 'hunger') > 100%) continue; else {Team.members['hunger']+=$food; Team.bag REMOVE $food}
+						§ if(array_sum(array_column(Team.members, 'hunger') < ReturnOnLowFoodPercent)
+							§ EMIT: {RTO team want to escape}
 					- [ ] Loot & items:
-						- [ ] coins = randomBetween(minGold, maxGold) * (1 + thoroughnessBonus)
-						- [ ] items: +thoroughnessBonus
+						- [ ] coins = randomBetween(Quest.Contract.Dungeon.floor[Quest.Progress.current_floor].minGold, Quest.Contract.Dungeon.floor[Quest.Progress.current_floor].maxGold)
+							- [ ] Things that tip the scale of "randomBetween()":
+								? TODO: 
+								- [ ] Quest.Contract. ...
+								- ...
+							§ Team.purse += coins
+						- [ ] items = ...
+							? TODO: RESEARCH: Dungeon Info / Creation (Lists: Pokemon spawns, item drops, etc etc)
+							- [ ] Things that tip the scale of how MANY
+								? TODO: 
+								- [ ] Quest.Contract. ...
+								- ...
+							§ Team.bag += items
 							- [ ] when capacity exceeded:
-								- [ ] Run item choice algorith
+								- [ ] Run item choice algorith (should be in Quest.Contract)
 								- [ ] excess is left behind
-					- [ ] NO TRAPS V.1 SPARE ME!!
+					- NO TRAPS V.1 SPARE ME!!
 					§ EMIT: {RTO Team dungeon floor decended}
-				- [ ] On {RTO Team dungeon floor decended}
-					- [ ] "Quest Progress".floorsCleared++
-					- [ ] Check Quest Contract to see if Quest completed
-						- [ ] Reached the end of dungeon
+				- [~] On {RTO Team dungeon floor decended}
+					§ Quest.Progress.current_floor++
+					- [ ] Check completion
+						§ if(Quest.Progress.current_floor > Quest.Contract.Dungeon.last_floor )
+							§ EMIT: {RTO Team Success}
+								? TODO: Wait wait wait... "We made it" while you are about to say "Now we need to find how to return back" is NOT a "we made it" at all!!
+							§ EMIT: {RTO team want to escape}
 					- [ ] Check Quest Contract to see if Return policy Triggered
-						- [ ] If "Quest Progress".floorsCleared >= targetFloor
+						§ if(Quest.Progress.current_floor > Quest.Contract. ... .target_floor)
+							§ EMIT: {RTO team want to escape}
 						-? Pokemon rescued
 						- [ ] Job completed
 						- [ ] ...
-				- [ ] On {RTO Team recruit success(enemy_pokemon)}
-					- [ ] Add poke to the Team.Recruits stack
+				- [X] On {RTO Team recruit success(enemy_pokemon)}
+					§ Team.Recruits.push(enemy_pokemon)
 				- [ ] On {RTO Team leaving dungeon}
 					- [ ] Award Exp
 					- [ ] Append event to "Quest Progress".report for end-of-mission summary (encounters, items, recruits, damages).
-				- [ ] On {RTO Team Success / Escape} (After {RTO Team leaving dungeon})
+					§ SWITCH(Quest ... status)
+						§ CASE success:
+							§ EMIT: {RTO Team leaving dungeon in success}
+						§ CASE fail:
+							§ EMIT: {RTO Team leaving dungeon in fainted}
+						§ CASE ongoing:
+							§ EMIT: {RTO Team leaving dungeon in escape}
+				- [ ] On {RTO Team leaving dungeon in success}
 					- [ ] Apply small cooldown to Team
 					- [ ] Award spoils
 						- [ ] Recruits
@@ -220,7 +263,8 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 						- [ ] coins
 						- [ ] ...
 					- [ ] Return items to storage
-				- [ ] On {RTO Team fainted} (After {RTO Team leaving dungeon})
+				- [ ] On {RTO Team leaving dungeon in escape}
+				- [ ] On {RTO Team leaving dungeon in fainted}
 					- [ ] Apply hash cooldown to team
 					- [ ] Options depend on Quest Contract and/or Return policy:
 						- [ ] If ConsumeReviverItems set and items available — auto revive using item and continue (with HP/food penalty).
@@ -232,6 +276,9 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 					- [ ] Surviving recruited Pokémon (if any) have a chance to escape (recruitment fails) or return injured.
 					? Gold penalty: pay rescue / lost coins.
 					- [ ] Team disbanded? Recommend NOT full permadeath by default. Instead mark team as injured and require restTicks to be reused. If you want a harder mode, offer permadeath toggle.
+				- [ ] On {RTO Team Success}
+				- [ ] On {RTO Team fainted}
+					
 			
 	- [ ] MVC: Model (Entities)
 		- #### Paths
@@ -241,16 +288,18 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			- CONSTANTS.TURNS_PER_TICK
 			- CONSTANTS.MAX_GROUND_SECONDS_TO_CALCULATE
 			- CONSTANTS.HOW_MANY_GROUND_SECONDS_ARE_TURN_MULTIPLIER
+			- CONSTANTS.MAJOR_LOSS_PERCENT // Example: 50
 			
 			- Quest.all
+			- Quest.Contract.Dungeon
+			- Quest.Contract.DungeonExtraInfo.floor_size_info
+			- Quest.Contract.DungeonExtraInfo.floor_size_info.ticks_per_floor
 			- Quest.fromMainTeamDungeon(Main Team, Current Dungeon): Quest
+			- Quest.Progress.advanceTime(int ticks)
 			- Quest.Progress.current_floor
 			- RTO_quests_tick(int ticks)
-			- Team.MainTeam.Quest.Progress.floor_turn_counter
 			- Team.MainTeam.ground_seconds
-			- Quest.Contract.DungeonExtraInfo.floor_size_info
-			- Quest.Progress.advanceTime(int ticks)
-			- Quest.Contract.DungeonExtraInfo.floor_size_info.ticks_per_floor
+			- Team.MainTeam.Quest.Progress.floor_turn_counter
 			
 		- [ ] Team
 			- [ ] Link: Team.Bag
@@ -338,9 +387,12 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 					- [ ] Capture Pokemon
 					- [ ] Expose traps
 					- [ ] Use items
+					- [ ] Use Food items
 				- [ ] Return policy:
-					- [ ] ReturnOnLowFoodPct (e.g. 20%)
-					- [ ] AbortOnAnyFaint (if >Y% of team HP lost)
+					- [ ] Target floor
+					- [ ] ReturnOnLowFoodPercent (e.g. 20%)
+					- [ ] AbortOnMostFaint
+					- [ ] AbortOnAnyFaint
 					- [ ] AbortOnMajorLoss (if >Y% of team HP lost)
 					- [ ] AbortOnQuestFailed (...?)
 					- [ ] Don't return ..... xD ... hahaha, give it your all or die trying xD
@@ -379,12 +431,12 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 					- [ ] You meet puzzles!!
 					- [ ] You meet risky bargains!! (Like, switch the trap, get treasures and TROUBLES!!)
 		- [ ] On {RTO Team dungeon floor descending}
-			- [ ] Calculate "encounters" based on "turns/steps taken to proceed"
-				- [ ] Calculate "Moves used count" based on encounters
 			- [ ] Simulate encounters
 				- [ ] Compute outcome:
 					- [ ] Calculate hp loss
 					- [ ] Update Team.Pokemons[that_pokemon] stats (health, fainted), status etc
+				- [ ] Calculate "Moves used count" => depends on: Simulate encounters
+					- [ ] Combat intensity approximated by expectedEncounterCount * avgEnemyHP / avgTeamHP. Or more simply compute: expectedCombatRatio = 0.5 + 0.5 * encounterCount (tunable).
 			- [ ] Traps & hazards:
 				(Traps should "carry stuff" to the following battles, like if it was not insta damage, life diminishes little by little => in next battle you are damaged! Because damage slowly heals)
 				-	Trap triggers reduce HP or consume items. trapChance = baseTrapRate * dungeonTrapModifier * modeTrapMod.
