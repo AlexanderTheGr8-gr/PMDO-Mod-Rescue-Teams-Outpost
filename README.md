@@ -53,26 +53,32 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 - [ ] ACTIVE TASK
 	- Info
 		- Steps/Turns (Main team) -> Ticks (Universal) -> Floor progress (RTO Teams)
-		- Ticks advanced based on Team.MainTeam.Quest.Progress.floor_turn_counter EVEN if floor ALREADY cleared (because team can traverse up-down)
+		- Ticks advanced based on Team.MainTeam.Quest.Progress.turns_taken EVEN if floor ALREADY cleared (because team can traverse up-down)
 		- Quest.Progress.current_floor == 0: "Preparation phase", will depart shortly...
 	
 	- [ ] MVC: Control
 		- [ ] Events
 			- #### Main Team Events
-				- [X] On {Dungeon MainTeam turn completed} -> Increment Team.MainTeam.Quest.Progress.floor_turn_counter
+				- § On {Dungeon MainTeam turn completed}
 					§ FIND: {Dungeon MainTeam turn completed}
-					§ NEW FIELD: Team.MainTeam.Quest.Progress.floor_turn_counter: Team.MainTeam.Quest.Progress.floor_turn_counter
-				- [X] On {Dungeon MainTeam change floor}
+					§ Team.MainTeam.Quest.Progress.turns_taken++
+				- § On {Dungeon MainTeam change floor}
 					§ FIND: {Dungeon MainTeam change floor}
-					- [X] Convert Team.MainTeam.Quest.Progress.floor_turn_counter to ticks (int div) ($converted_ticks), and preserve the remainder(X % Y)!! rather than resetting to 0!!
-						§ NEW FIELD: CONSTANTS.TURNS_PER_TICK
-					- [X] for $converted_ticks
+					§ $ticks_filled = Team.MainTeam.Quest.Progress.turns_taken INT DIV CONSTANTS.TURNS_PER_TICK
+					§ Team.MainTeam.Quest.Progress.turns_taken = Team.MainTeam.Quest.Progress.turns_taken MODULO CONSTANTS.TURNS_PER_TICK
+					§ FOR $ticks_filled
 						§ EMIT: {Quest time tick}
 						§ NEW FUNCTION: RTO_quests_tick(int ticks)
-				- [X] On {Dungeon MainTeam exit} -> Menu: [Complete Summary Screen]
-					§ FIND: {Main team dungeon completion handler}
-					- [X] Link it to normal flow = Before dungeon finish UI, events, etc
-						§ FIND: dungeon finish UI
+				- § On {Dungeon MainTeam exited}
+					§ FIND: {Dungeon MainTeam exited}
+					§ [Complete Summary Screen]
+						- [ ] Link it to normal flow = Before "dungeon finish UI", events, etc
+						§ FIND: "dungeon finish UI"
+					? TODO: WHEN?
+						- After finish
+						- After faint / rescued
+						- After Escape (orb)
+				
 				- [~] On {Dungeon MainTeam enter} -> Create a Quest and Record dungeon in a Quest.Contract.Dungeon
 					§ FIND: {Dungeon MainTeam enter}
 					§ NEW FUNCTION: Quest.fromMainTeamDungeon(Main Team, Current Dungeon): Quest
@@ -128,11 +134,14 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			
 			- #### Misc Events
 				- [~] On {Quest time tick} ("Quest tick" serves to "Advance Quests", it is NOT itself the "advance quest" function)
-					- [ ] Foreach Quest
+					§ FOREACH Team as T
+						§ if T in Quest continue
+						§ Team.T.cooldownTicksRemain = max(0, Team.T.cooldownTicksRemain - 1)
+					§ FOREACH Quest as $quest
 						§ NEW/EXISTING FUNCTION/FIELD: Quest.all
-						- Quest.Progress.current_floor == 0: "Preparation phase", will depart shortly...
+						- $quest.Progress.current_floor == 0: "Preparation phase", will depart shortly...
 							§ NEW FUNCTION: "Notify new departs" ? TODO: function where? Needs params?
-							§ Emit: {Quest starting(Quest)}
+							§ Emit: {Quest starting($quest)}
 						§ NEW FUNCTION: Quest.Progress.advanceTime(int ticks)
 							§ Quest.Progress.currentTickProgress += 1
 							§ If Quest.Progress.currentTickProgress >= Quest.Contract.DungeonExtraInfo.floor_size_info.ticks_per_floor
@@ -142,10 +151,13 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			- <h3 id="continue_here"><b><u>CONTINUE HERE</u></b></h3>
 			- #### RTO Team Events
 				- [ ] On {RTO team want to escape}
-					...
+					§ If Team.Bag HAS escapeItems AS Esc
+						§ Team.Bag REMOVE Esc
+						§ EMIT: {RTO Team leaving dungeon}
+					§ Team.Quest.wantToEscape = true 
 				- [X] On {RTO team fight won}
 					- [ ] Calculate XP
-						§ Team.Pokemon[*].exp += "Calculated XP"
+						§ Team.members[*].exp += "Calculated XP"
 					- [ ] Recruitment attempts:
 						§ If not recruitable / team full: break
 						- [ ] If not recruiting: break
@@ -167,15 +179,13 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 							§ EMIT: {RTO team using healing item(itemX)}
 				- [X] On {RTO team fight faint}
 					§ Set Team.members[X] SET fainted
-					§ If all team fainted
+					§ if(Team.members.filter(p => p NOT fained).length <= 0)
 						§ EMIT: {RTO Team fainted}
 						§ FUNCTION TERMINATE
 					§ if(Quest.Contract.tactics HAS use_items && Team.bag contains revive item: itemX)
 						? TODO: WARNING: Bad logic. This way up to 1 item can be used... Make this "Loopable"
 						§ EMIT: {RTO team using healing item(itemX)}
 					- [ ] Consider Quest failed conditions??
-						§ if(Team.members.filter(p => p NOT fained).length <= 0)
-							§ EMIT: {RTO Team fainted}
 						? Other objectives that may have failed? Like a "None dead condition"?? hmmm...
 					§ if(Quest.Contract.return_policy == AbortOnAnyFaint)
 						§ EMIT: {RTO team want to escape}
@@ -245,9 +255,8 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 						- [ ] ...
 				- [X] On {RTO Team recruit success(enemy_pokemon)}
 					§ Team.Recruits.push(enemy_pokemon)
-				- [ ] On {RTO Team leaving dungeon}
-					- [ ] Award Exp
-					- [ ] Append event to "Quest Progress".report for end-of-mission summary (encounters, items, recruits, damages).
+				- [X] On {RTO Team leaving dungeon}
+					§ Quest.progress_reports APPEND Quest.Progress // for end-of-mission summary (encounters, items, recruits, damages) and later on statistics
 					§ SWITCH(Quest ... status)
 						§ CASE success:
 							§ EMIT: {RTO Team leaving dungeon in success}
@@ -255,22 +264,25 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 							§ EMIT: {RTO Team leaving dungeon in fainted}
 						§ CASE ongoing:
 							§ EMIT: {RTO Team leaving dungeon in escape}
-				- [ ] On {RTO Team leaving dungeon in success}
-					- [ ] Apply small cooldown to Team
+				- [X] On {RTO Team leaving dungeon in success}
+					§ Team.cooldownTicksRemain = CONSTANTS.TEAM_QUEST_SUCCESS_COOLDOWN
 					- [ ] Award spoils
-						- [ ] Recruits
-						- [ ] items
-						- [ ] coins
-						- [ ] ...
-					- [ ] Return items to storage
-				- [ ] On {RTO Team leaving dungeon in escape}
-				- [ ] On {RTO Team leaving dungeon in fainted}
-					- [ ] Apply hash cooldown to team
-					- [ ] Options depend on Quest Contract and/or Return policy:
-						- [ ] If ConsumeReviverItems set and items available — auto revive using item and continue (with HP/food penalty).
-						- [ ] Else if PayRescueFee set and outpostHasFunds → spend coins and revive team (set morale penalty).
-						- [ ] Else: mission failed — compute losses:
-							§ EMIT: {RTO Team quest failed}
+						§ FOREACH Team.Recruits as Rec
+							§ Assembly add Rec
+							§ RESEARCH: How to add (recruit?) pokemon to assembly?
+						§ FOREACH Team.Bag as Item
+							§ Storage add Item
+							§ RESEARCH: How to add Item to storage?
+						§ Bank add Team.Purse
+							§ RESEARCH: How to add poke/coins to bank?
+						§ FOREACH Team.members as $mem
+							§ $mem.char += Team.members[*].exp
+							§ RESEARCH: How to award exp
+				- [X] On {RTO Team leaving dungeon in escape}
+					- Same as {RTO Team leaving dungeon in success}
+					§ EMIT: {RTO Team leaving dungeon in success}
+				- [X] On {RTO Team leaving dungeon in fainted}
+					§ Team.cooldownTicksRemain = CONSTANTS.TEAM_QUEST_FAIL_COOLDOWN
 				- [ ] On {RTO Team quest failed} (After {RTO Team leaving dungeon})
 					- [ ] Empty: Team.purse, Team.recruited, Team.bag
 					- [ ] Surviving recruited Pokémon (if any) have a chance to escape (recruitment fails) or return injured.
@@ -278,6 +290,11 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 					- [ ] Team disbanded? Recommend NOT full permadeath by default. Instead mark team as injured and require restTicks to be reused. If you want a harder mode, offer permadeath toggle.
 				- [ ] On {RTO Team Success}
 				- [ ] On {RTO Team fainted}
+					- [ ] Options depend on Quest Contract and/or Return policy:
+						- [ ] If ConsumeReviverItems set and items available — auto revive using item and continue (with HP/food penalty).
+						- [ ] Else if PayRescueFee set and outpostHasFunds → spend coins and revive team (set morale penalty).
+						- [ ] Else: mission failed — compute losses:
+							§ EMIT: {RTO Team quest failed}
 					
 			
 	- [ ] MVC: Model (Entities)
@@ -289,6 +306,8 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			- CONSTANTS.MAX_GROUND_SECONDS_TO_CALCULATE
 			- CONSTANTS.HOW_MANY_GROUND_SECONDS_ARE_TURN_MULTIPLIER
 			- CONSTANTS.MAJOR_LOSS_PERCENT // Example: 50
+			- CONSTANTS.TEAM_QUEST_SUCCESS_COOLDOWN
+			- CONSTANTS.TEAM_QUEST_FAIL_COOLDOWN
 			
 			- Quest.all
 			- Quest.Contract.Dungeon
@@ -299,20 +318,22 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			- Quest.Progress.current_floor
 			- RTO_quests_tick(int ticks)
 			- Team.MainTeam.ground_seconds
-			- Team.MainTeam.Quest.Progress.floor_turn_counter
+			- Team.MainTeam.Quest.Progress.turns_taken
+			- Team.cooldownTicksRemain
 			
 		- [ ] Team
 			- [ ] Link: Team.Bag
 			- [ ] Link: Team.Purse
 			- [ ] Link: Team.Recruits
-			- [ ] Link: Team.Pokemon
+			- [ ] Link: Team.members
 			- [ ] Link: Quest
 			- [ ] Static: Team.MainTeam: active team reference/index
 			- [ ] ground_seconds
+			- [ ] cooldownTicksRemain
 		- [ ] Team.Bag
 		- [ ] Team.Purse
 		- [ ] Team.Recruits
-		- [ ] Team.Pokemon
+		- [ ] Team.members
 			- [ ] Link: Pokemon Char
 			- [ ] Exp
 		- [ ] Main team
@@ -320,6 +341,7 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 		- [ ] Quest
 			- [ ] Link: Quest.Contract
 			- [ ] Link: Quest.Progress
+			- [ ] Link: Quest.progress_reports
 			- [ ] Link: Job
 		
 		- [ ] Quest.Contract (Options)
@@ -332,12 +354,15 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			- [ ] floor_size_info
 			
 		- [ ] Quest.Progress
-			- [ ] Quest.Progress.floor_turn_counter: Used only for Main Team
+			- [ ] Quest.Progress.turns_taken: Used only for Main Team
 			- [ ] Quest.Progress.advanceTime(int ticks)
 			- [ ] Possible stages:
 				- [ ] Preparation (Barely confirmed mission)
 				- [ ] Ongoing [F: Quest failed] / Returning
 				- [ ] Completed / Fainted
+		
+		- [ ] Quest.progress_reports
+			- Array of Quest.Progress, in their last state
 		
 		- [ ] Mod_save_data:
 			- ...
@@ -434,7 +459,7 @@ Mod currently, adds functionality for: Creating/managing teams, and dispatching 
 			- [ ] Simulate encounters
 				- [ ] Compute outcome:
 					- [ ] Calculate hp loss
-					- [ ] Update Team.Pokemons[that_pokemon] stats (health, fainted), status etc
+					- [ ] Update Team.members[that_pokemon] stats (health, fainted), status etc
 				- [ ] Calculate "Moves used count" => depends on: Simulate encounters
 					- [ ] Combat intensity approximated by expectedEncounterCount * avgEnemyHP / avgTeamHP. Or more simply compute: expectedCombatRatio = 0.5 + 0.5 * encounterCount (tunable).
 			- [ ] Traps & hazards:
